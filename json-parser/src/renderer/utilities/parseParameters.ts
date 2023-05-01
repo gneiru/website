@@ -4,7 +4,7 @@ export function parseParameters(parameters: ParameterParser[], projectParser: Pr
 	if (!parameters.length) return '';
 
 	return `| Name | Type | Description |
-| :---: | :---: | :---: | :---: |
+| :---: | :---: | :---: |
 ${parameters
 	.map(
 		(parameter) =>

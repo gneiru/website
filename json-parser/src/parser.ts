@@ -11,7 +11,9 @@ import {
 	ProjectParser,
 	ReferenceTypeParser,
 	TypeAliasParser,
-	VariableParser
+	VariableParser,
+	type SearchResult,
+	TypeParameterParser
 } from 'typedoc-json-parser';
 import { renderOutputFiles } from './renderer/render';
 import { removeDirectory } from './renderer/utilities/removeDirectory';
@@ -24,6 +26,7 @@ const references: Record<string, string> = {
 	BigInt64Array: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt64Array',
 	Blob: 'https://developer.mozilla.org/en-US/docs/Web/API/Blob',
 	Date: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date',
+	_DOMEventTarget: 'https://developer.mozilla.org/en-US/docs/Web/API/EventTarget',
 	Error: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error',
 	Float32Array: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Float32Array',
 	Float64Array: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Float64Array',
@@ -42,14 +45,19 @@ const references: Record<string, string> = {
 
 	// Node.js
 	'global.Buffer': 'https://nodejs.org/api/buffer.html',
+	'__global.Buffer': 'https://nodejs.org/api/buffer.html',
 	EventEmitter: 'https://nodejs.org/api/events.html#events_class_eventemitter',
 	'global.NodeJS.EventEmitter': 'https://nodejs.org/api/events.html#events_class_eventemitter',
+	'__global.NodeJS.EventEmitter': 'https://nodejs.org/api/events.html#events_class_eventemitter',
 	'EventEmitter.captureRejectionSymbol': 'https://nodejs.org/api/events.html#eventscapturerejectionsymbol',
 	'EventEmitter.errorMonitor': 'https://nodejs.org/api/events.html#eventserrormonitor',
 	NodeEventTarget: 'https://nodejs.org/api/events.html#class-nodeeventtarget',
 	PathLike: 'https://nodejs.org/api/path.html#path_pathlike',
+	'"fs".PathLike': 'https://nodejs.org/api/path.html#path_pathlike',
 	'global.NodeJS.Timeout': 'https://nodejs.org/api/timers.html#timers_class_timeout',
+	'__global.NodeJS.Timeout': 'https://nodejs.org/api/timers.html#timers_class_timeout',
 	'global.NodeJS.Timer': 'https://nodejs.org/api/timers.html#timers_class_timeout',
+	'__global.NodeJS.Timer': 'https://nodejs.org/api/timers.html#timers_class_timeout',
 	'internal.Stream': 'https://nodejs.org/api/stream.html#stream_class_stream',
 
 	// TypeScript
@@ -74,32 +82,79 @@ const unknownReferences: Set<string> = new Set([
 	'MethodDecorator',
 	'PropertyKey',
 	'ObjectConstructor',
-	'ReadonlyMap'
+	'ReadonlyMap',
+
+	// '@types/node'
+	'StaticEventEmitterOptions'
 ]);
+
+function getNamespaceParent(result: SearchResult, project: ProjectParser): NamespaceParser | null {
+	return 'namespaceParentId' in result && result.namespaceParentId ? (project.find(result.namespaceParentId) as NamespaceParser | null) : null;
+}
+
+function recursivelyGetNamespaceParents(result: SearchResult, project: ProjectParser): NamespaceParser[] {
+	const parents: NamespaceParser[] = [];
+	let parent = getNamespaceParent(result, project);
+
+	while (parent) {
+		parents.push(parent);
+		parent = getNamespaceParent(parent, project);
+	}
+
+	return parents;
+}
 
 ReferenceTypeParser.formatToString = (options) => {
 	const { parser, project } = options;
-	const typeArguments = parser.typeArguments.length > 0 ? `< ${parser.typeArguments.map((type) => type.toString()).join(', ')}\\>` : '';
+	const typeArguments =
+		parser.typeArguments.length > 0
+			? `<${parser.typeArguments.map((type) => (project ? type.toString(project) : type.toString())).join(', ')}\\>`
+			: '';
 
-	if (parser.id) {
-		const found = project?.find(parser.id);
+	if (parser.id && parser.id > 0 && project) {
+		const result = project.find(parser.id);
 
-		if (found) {
-			if ('external' in found && !found.external) {
-				if (found instanceof NamespaceParser) {
-					return `[\`${parser.name}\`](../namespace/${parser.name.toLowerCase().replace(/\s/g, '-')}.mdx)${typeArguments}`;
-				} else if (found instanceof ClassParser) {
-					return `[\`${parser.name}\`](../class/${parser.name.toLowerCase().replace(/\s/g, '-')}.mdx)${typeArguments}`;
-				} else if (found instanceof FunctionParser) {
-					return `[\`${parser.name}\`](../function/${parser.name.toLowerCase().replace(/\s/g, '-')}.mdx)${typeArguments}`;
-				} else if (found instanceof InterfaceParser) {
-					return `[\`${parser.name}\`](../interface/${parser.name.toLowerCase().replace(/\s/g, '-')}.mdx)${typeArguments}`;
-				} else if (found instanceof TypeAliasParser) {
-					return `[\`${parser.name}\`](../type-alias/${parser.name.toLowerCase().replace(/\s/g, '-')}.mdx)${typeArguments}`;
-				} else if (found instanceof EnumParser) {
-					return `[\`${parser.name}\`](../enum/${parser.name.toLowerCase().replace(/\s/g, '-')}.mdx)${typeArguments}`;
-				} else if (found instanceof VariableParser) {
-					return `[\`${parser.name}\`](../variable/${parser.name.toLowerCase().replace(/\s/g, '-')}.mdx)${typeArguments}`;
+		if (result) {
+			if (result instanceof TypeParameterParser) return `\`${parser.name}\`${typeArguments}`;
+
+			if ('external' in result && !result.external) {
+				const parents = recursivelyGetNamespaceParents(result, project);
+
+				if (result instanceof NamespaceParser) {
+					return `[\`${parser.name}\`](../${parents
+						.reverse()
+						.map((parent) => `namespace/${parent.name.toLowerCase().replace(/\s/g, '-')}/`)
+						.join('/')}/namespace/${parser.name.toLowerCase().replace(/\s/g, '-')}.mdx)${typeArguments}`;
+				} else if (result instanceof ClassParser) {
+					return `[\`${parser.name}\`](../${parents
+						.reverse()
+						.map((parent) => `namespace/${parent.name.toLowerCase().replace(/\s/g, '-')}/`)
+						.join('/')}/class/${parser.name.toLowerCase().replace(/\s/g, '-')}.mdx)${typeArguments}`;
+				} else if (result instanceof FunctionParser) {
+					return `[\`${parser.name}\`](../${parents
+						.reverse()
+						.map((parent) => `namespace/${parent.name.toLowerCase().replace(/\s/g, '-')}/`)
+						.join('/')}/function/${parser.name.toLowerCase().replace(/\s/g, '-')}.mdx)${typeArguments}`;
+				} else if (result instanceof InterfaceParser) {
+					return `[\`${parser.name}\`](../${parents
+						.reverse()
+						.map((parent) => `namespace/${parent.name.toLowerCase().replace(/\s/g, '-')}/`)
+						.join('/')}/interface/${parser.name.toLowerCase().replace(/\s/g, '-')}.mdx)${typeArguments}`;
+				} else if (result instanceof EnumParser) {
+					return `[\`${parser.name}\`](../${parents
+						.reverse()
+						.map((parent) => `namespace/${parent.name.toLowerCase().replace(/\s/g, '-')}/`)
+						.join('/')}/enum/${parser.name.toLowerCase().replace(/\s/g, '-')}.mdx)${typeArguments}`;
+				} else if (result instanceof TypeAliasParser) {
+					return `[\`${parser.name}\`](../${parents
+						.reverse()
+						.map((parent) => `namespace/${parent.name.toLowerCase().replace(/\s/g, '-')}/`)
+						.join('/')}/type/${parser.name.toLowerCase().replace(/\s/g, '-')}.mdx)${typeArguments}`;
+				} else if (result instanceof VariableParser) {
+					return `[\`${parser.name}\`](../${parents
+						.reverse()
+						.map((parent) => `namespace/${parent.name.toLowerCase().replace(/\s/g, '-')}/`)
+						.join('/')}/variable/${parser.name.toLowerCase().replace(/\s/g, '-')}.mdx)${typeArguments}`;
 				}
 			}
 		} else {

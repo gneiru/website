@@ -10,7 +10,14 @@ import { writeCategoryYaml } from './writeCategoryYaml';
 function renderClass(classParser: ClassParser, projectParser: ProjectParser, outputDir: string, fileSidebarPosition: number) {
 	const slug = classParser.name.toLowerCase().replace(/\s/g, '-');
 
-	const header = `---
+	const header = `import DeprecatedPill from '@site/src/components/Docs/pills/DeprecatedPill';
+import PrivatePill from '@site/src/components/Docs/pills/PrivatePill';
+import ProtectedPill from '@site/src/components/Docs/pills/ProtectedPill';
+import ReadOnlyPill from '@site/src/components/Docs/pills/ReadOnlyPill';
+import StaticPill from '@site/src/components/Docs/pills/StaticPill';
+import CodeLinkAnchor from '@site/src/components/Docs/CodeLinkAnchor';
+
+---
 id: "${slug}"
 title: "${classParser.name}"
 sidebar_label: "${classParser.name}"
@@ -105,17 +112,20 @@ function parseProperties(properties: ClassPropertyParser[], projectParser: Proje
 
 ${properties
 	.map(
-		(property) => `### ${
-			property.accessibility === ClassParser.Accessibility.Protected
-				? '`PROTECTED` '
-				: property.accessibility === ClassParser.Accessibility.Private
-				? '`PRIVATE` '
-				: ''
-		}${property.static ? '`STATIC` ' : ''}${property.readonly ? '`READONLY` ' : ''}${property.name}${
-			property.type ? `${property.optional ? '?' : ''}: ${property.type.toString(projectParser)}` : ''
-		}
+		(property) =>
+			`### ${property.name}${
+				property.accessibility === ClassParser.Accessibility.Protected
+					? '<ProtectedPill />'
+					: property.accessibility === ClassParser.Accessibility.Private
+					? '<PrivatePill />'
+					: ''
+			}${property.static ? '<StaticPill />' : ''}${property.readonly ? '<ReadOnlyPill />' : ''}${
+				property.comment.deprecated ? '<DeprecatedPill />' : ''
+			}
 
-${property.comment.description ?? 'No description provided.'}`
+${property.comment.description ?? 'No description provided.'}
+
+**Type**: ${property.type.toString(projectParser)}`
 	)
 	.join('\n\n')}`;
 }
@@ -131,17 +141,17 @@ ${methods
 		method.signatures
 			.map(
 				(signature) =>
-					`### ${
+					`### ${signature.name}${
 						method.accessibility === ClassParser.Accessibility.Protected
-							? '`PROTECTED` '
+							? '<ProtectedPill />'
 							: method.accessibility === ClassParser.Accessibility.Private
-							? '`PRIVATE `'
+							? '<PrivatePill />'
 							: ''
-					}${method.static ? '`STATIC` ' : ''}${signature.name}${
-						signature.typeParameters.length ? `<${signature.typeParameters.map((typeParameter) => typeParameter.name).join(', ')}\\>` : ''
-					}(${signature.parameters.map((parameter) => parameter.name).join(', ')}): ${signature.returnType.toString(projectParser)}
+					}${method.static ? '<StaticPill />' : ''}${signature.comment.deprecated ? '<DeprecatedPill />' : ''}
 
 ${signature.comment.description ?? 'No description provided.'}
+
+**Return Type**: ${signature.returnType.toString(projectParser)}
 
 ${parseSee(signature.comment.see)}
 
