@@ -3,7 +3,23 @@ import { resolve } from 'node:path';
 import type { ProjectParser, TypeAliasParser } from 'typedoc-json-parser';
 import { writeCategoryYaml } from './writeCategoryYaml';
 
-function renderTypeAlias(typeAliasParser: TypeAliasParser, outputDir: string, fileSidebarPosition: number) {
+export function renderTypeAliases(typeAliasParsers: TypeAliasParser[], projectParser: ProjectParser, outputDir: string, isGroup: boolean) {
+	if (typeAliasParsers.every((typeAliasParser) => typeAliasParser.external)) return;
+
+	const categoryDir = writeCategoryYaml(outputDir, 'type-alias', 'Type Aliases', isGroup ? 2 : 1);
+
+	let fileSidebarPosition = 0;
+
+	for (const typeAliasParser of typeAliasParsers) {
+		if (typeAliasParser.external) return;
+
+		renderTypeAlias(typeAliasParser, projectParser, categoryDir, fileSidebarPosition);
+
+		fileSidebarPosition++;
+	}
+}
+
+function renderTypeAlias(typeAliasParser: TypeAliasParser, _projectParser: ProjectParser, outputDir: string, fileSidebarPosition: number) {
 	const slug = typeAliasParser.name.toLowerCase().replace(/\s/g, '-');
 
 	const header = `---
@@ -17,20 +33,4 @@ custom_edit_url: null
 	const result = `${header}`;
 
 	writeFileSync(resolve(outputDir, `${slug}.mdx`), result);
-}
-
-export function renderTypeAliases(projectParser: ProjectParser, outputDir: string, isGroup: boolean) {
-	if (!projectParser.typeAliases.every((typeAliasParser) => typeAliasParser.external)) {
-		const categoryDir = writeCategoryYaml(outputDir, 'type-alias', 'Type Aliases', isGroup ? 2 : 1);
-
-		let fileSidebarPosition = 0;
-
-		for (const typeAliasParser of projectParser.typeAliases) {
-			if (typeAliasParser.external) continue;
-
-			renderTypeAlias(typeAliasParser, categoryDir, fileSidebarPosition);
-
-			fileSidebarPosition++;
-		}
-	}
 }

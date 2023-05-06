@@ -5,7 +5,23 @@ import { parseExamples } from './utilities/parseExamples';
 import { parseSee } from './utilities/parseSee';
 import { writeCategoryYaml } from './writeCategoryYaml';
 
-function renderEnum(enumParser: EnumParser, outputDir: string, fileSidebarPosition: number) {
+export function renderEnums(enumParsers: EnumParser[], projectParser: ProjectParser, outputDir: string, isGroup: boolean) {
+	if (enumParsers.every((enumParser) => enumParser.external)) return;
+
+	const categoryDir = writeCategoryYaml(outputDir, 'enum', 'Enums', isGroup ? 2 : 1);
+
+	let fileSidebarPosition = 0;
+
+	for (const enumParser of enumParsers) {
+		if (enumParser.external) continue;
+
+		renderEnum(enumParser, projectParser, categoryDir, fileSidebarPosition);
+
+		fileSidebarPosition++;
+	}
+}
+
+function renderEnum(enumParser: EnumParser, _projectParser: ProjectParser, outputDir: string, fileSidebarPosition: number) {
 	const slug = enumParser.name.toLowerCase().replace(/\s/g, '-');
 
 	const header = `---
@@ -34,22 +50,6 @@ ${parseMembers(enumParser.members)}
 `;
 
 	writeFileSync(resolve(outputDir, `${slug}.mdx`), result);
-}
-
-export function renderEnums(projectParser: ProjectParser, outputDir: string, isGroup: boolean) {
-	if (!projectParser.enums.every((enumParser) => enumParser.external)) {
-		const categoryDir = writeCategoryYaml(outputDir, 'enum', 'Enums', isGroup ? 2 : 1);
-
-		let fileSidebarPosition = 0;
-
-		for (const enumParser of projectParser.enums) {
-			if (enumParser.external) continue;
-
-			renderEnum(enumParser, categoryDir, fileSidebarPosition);
-
-			fileSidebarPosition++;
-		}
-	}
 }
 
 function parseMembers(members: EnumMemberParser[]): string {

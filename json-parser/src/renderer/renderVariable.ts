@@ -3,7 +3,23 @@ import { resolve } from 'node:path';
 import type { VariableParser, ProjectParser } from 'typedoc-json-parser';
 import { writeCategoryYaml } from './writeCategoryYaml';
 
-function renderVariable(constantParser: VariableParser, outputDir: string, fileSidebarPosition: number) {
+export function renderVariables(variableParsers: VariableParser[], projectParser: ProjectParser, outputDir: string, isGroup: boolean) {
+	if (variableParsers.every((variableParser) => variableParser.external)) return;
+
+	const categoryDir = writeCategoryYaml(outputDir, 'variable', 'Variables', isGroup ? 2 : 1);
+
+	let fileSidebarPosition = 0;
+
+	for (const variableParser of variableParsers) {
+		if (variableParser.external) continue;
+
+		renderVariable(variableParser, projectParser, categoryDir, fileSidebarPosition);
+
+		fileSidebarPosition++;
+	}
+}
+
+function renderVariable(constantParser: VariableParser, _projectParser: ProjectParser, outputDir: string, fileSidebarPosition: number) {
 	const slug = constantParser.name.toLowerCase().replace(/\s/g, '-');
 
 	const header = `---
@@ -17,20 +33,4 @@ custom_edit_url: null
 	const result = `${header}`;
 
 	writeFileSync(resolve(outputDir, `${slug}.mdx`), result);
-}
-
-export function renderVariables(projectParser: ProjectParser, outputDir: string, isGroup: boolean) {
-	if (!projectParser.variables.every((constantParser) => constantParser.external)) {
-		const categoryDir = writeCategoryYaml(outputDir, 'constant', 'Variables', isGroup ? 2 : 1);
-
-		let fileSidebarPosition = 0;
-
-		for (const constantParser of projectParser.variables) {
-			if (constantParser.external) continue;
-
-			renderVariable(constantParser, categoryDir, fileSidebarPosition);
-
-			fileSidebarPosition++;
-		}
-	}
 }

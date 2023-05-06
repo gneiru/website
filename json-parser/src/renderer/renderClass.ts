@@ -7,6 +7,22 @@ import { parseSee } from './utilities/parseSee';
 import { parseTypeParameters } from './utilities/parseTypeParameters';
 import { writeCategoryYaml } from './writeCategoryYaml';
 
+export function renderClasses(classParsers: ClassParser[], projectParser: ProjectParser, outputDir: string, isGroup: boolean) {
+	if (classParsers.every((classParser) => classParser.external)) return;
+
+	const categoryDir = writeCategoryYaml(outputDir, 'class', 'Classes', isGroup ? 2 : 1);
+
+	let fileSidebarPosition = 0;
+
+	for (const classParser of classParsers) {
+		if (classParser.external) continue;
+
+		renderClass(classParser, projectParser, categoryDir, fileSidebarPosition);
+
+		fileSidebarPosition++;
+	}
+}
+
 function renderClass(classParser: ClassParser, projectParser: ProjectParser, outputDir: string, fileSidebarPosition: number) {
 	const slug = classParser.name.toLowerCase().replace(/\s/g, '-');
 
@@ -58,22 +74,6 @@ ${parseMethods(classParser.methods, projectParser)}
 `;
 
 	writeFileSync(resolve(outputDir, `${slug}.mdx`), result);
-}
-
-export function renderClasses(projectParser: ProjectParser, outputDir: string, isGroup: boolean) {
-	if (!projectParser.classes.every((classParser) => classParser.external)) {
-		const categoryDir = writeCategoryYaml(outputDir, 'class', 'Classes', isGroup ? 2 : 1);
-
-		let fileSidebarPosition = 0;
-
-		for (const classParser of projectParser.classes) {
-			if (classParser.external) continue;
-
-			renderClass(classParser, projectParser, categoryDir, fileSidebarPosition);
-
-			fileSidebarPosition++;
-		}
-	}
 }
 
 function parseExtendsType(typeParser: TypeParser | null, projectParser: ProjectParser): string | null {
