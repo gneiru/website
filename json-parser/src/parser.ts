@@ -213,16 +213,14 @@ export async function docusaurusTypeDocJsonParser(options: PluginOptions) {
 
 				writeCategoryYaml(resolve(siteDir, 'docs', 'Documentation', directory.name), '', directory.name, 0);
 
-				const latestVersion = findLatestVersion(
+				const latestVersions = findLatestVersions(
 					subDirectoryContents
 						.filter((subDirectoryContent) => subDirectoryContent.name !== 'main.json')
-						.map((subDirectoryContent) =>
-							subDirectoryContent.name.replace('.json', '').replace('v', '')
-						) as `${number}.${number}.${number}`[]
+						.map((subDirectoryContent) => subDirectoryContent.name.replace('.json', '').replace('v', ''))
 				);
 
 				for (const subDirectoryContent of subDirectoryContents.filter((subDirectoryContent) =>
-					[latestVersion, 'main'].includes(subDirectoryContent.name.replace('.json', '').replace('v', ''))
+					[...latestVersions, 'main'].includes(subDirectoryContent.name.replace('.json', '').replace('v', ''))
 				)) {
 					if (subDirectoryContent.download_url === null)
 						throw new Error(
@@ -258,13 +256,13 @@ export async function docusaurusTypeDocJsonParser(options: PluginOptions) {
 				if (directoryContent.download_url === null)
 					throw new Error(`The 'download_url' field is null for '${directory.name}/${directoryContent.name}'`);
 
-				const latestVersion = findLatestVersion(
+				const latestVersions = findLatestVersions(
 					directoryContents
 						.filter((directoryContent) => directoryContent.name !== 'main.json')
-						.map((directoryContent) => directoryContent.name.replace('.json', '').replace('v', '')) as `${number}.${number}.${number}`[]
+						.map((directoryContent) => directoryContent.name.replace('.json', '').replace('v', ''))
 				);
 
-				if (!['main', latestVersion].includes(directoryContent.name.replace('.json', '').replace('v', ''))) continue;
+				if (!['main', ...latestVersions].includes(directoryContent.name.replace('.json', '').replace('v', ''))) continue;
 
 				writeCategoryYaml(resolve(siteDir, 'docs', 'Documentation', directory.name), '', directory.name, 0);
 
@@ -290,28 +288,17 @@ export async function docusaurusTypeDocJsonParser(options: PluginOptions) {
 	console.info(blue(`${bold('[INFO]')} Finished fetching & parsing repository content`));
 }
 
-// This function could use sort to find the latest version, but it's not worth the performance hit.
-function findLatestVersion(versions: `${number}.${number}.${number}`[]): `${number}.${number}.${number}` {
-	let latestMajor = -Infinity;
-	let latestMinor = -Infinity;
-	let latestPatch = -Infinity;
+function findLatestVersions(versions: string[]): string[] {
+	const latestVersions = new Map<number, string>();
 
 	for (const version of versions) {
 		const [major, minor, patch] = version.split('.').map(Number);
+		const latest = latestVersions.get(major);
 
-		if (major > latestMajor) {
-			latestMajor = major;
-			latestMinor = minor;
-			latestPatch = patch;
-		} else if (major === latestMajor) {
-			if (minor > latestMinor) {
-				latestMinor = minor;
-				latestPatch = patch;
-			} else if (minor === latestMinor && patch > latestPatch) {
-				latestPatch = patch;
-			}
+		if (!latest || minor > Number(latest.split('.')[1]) || (minor === Number(latest.split('.')[1]) && patch > Number(latest.split('.')[2]))) {
+			latestVersions.set(major, `${major}.${minor}.${patch}`);
 		}
 	}
 
-	return `${latestMajor}.${latestMinor}.${latestPatch}`;
+	return [...latestVersions.values()];
 }
